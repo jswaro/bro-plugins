@@ -30,23 +30,7 @@ event bro_init() &priority=5
         Log::create_stream(TCPREORDERING::LOG, [$columns=Info]);
     }
 
-    
-## TCP reordering event
-## 
-## This is generated when TCPRS detects the presence of a reordering
-##   event in a connection
-##   
-## c:         connection
-## timestamp: network time when the event occurred
-## is_orig:   Is this from the originating endpoint?
-## seq:       TCP sequence number associated with the event
-## gap:       how long ago was the sequence gap detected?
-## rtt:       round-trip time of the connection
-## num_seq:   number of segments detected since the sequence gap was
-##            detected
-## o_seq:     non-normalized TCP sequence number
-## beg_seq:   reserved
-## end_seq:   reserved
+#I want to call this a tcp_reordering_event later
 event conn_ooo_event(
     c:         connection,
     timestamp: time,
@@ -74,22 +58,7 @@ event conn_ooo_event(
         Log::write(TCPREORDERING::LOG, rec);
     }
 
-## TCP ambiguous reordering event
-##
-## This is generated when TCPRS detects the presence of an ambiguous 
-##   reordering event in a connection
-##
-## c:         connection
-## timestamp: network time when the event occurred
-## is_orig:   Is this from the originating endpoint?
-## seq:       TCP sequence number associated with the event
-## gap:       how long ago was the sequence gap detected?
-## rtt:       round-trip time of the connection
-## num_seq:   number of segments detected since the sequence gap was
-##            detected
-## o_seq:     non-normalized TCP sequence number
-## beg_seq:   reserved
-## end_seq:   reserved
+#I want to call this a tcp_reordering event as well. Classify it with a different tag.
 event conn_ambi_order(
     c:         connection,
     timestamp: time,

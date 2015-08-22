@@ -8,7 +8,6 @@ module TCPRECOVERY;
 export {
     redef enum Log::ID += { LOG };
 
-    ## TCP Recovery record
     type Info: record {
         ts:     time    &log;
         uid:    string  &log;
@@ -22,31 +21,14 @@ export {
         nnseq:  count   &log;
     };
 
-    ## TCP Recovery record event
     global log_tcp_recovery: event(rec: Info);
 }
 
-
-## TCP Recovery log init
 event bro_init() &priority=5
     {
         Log::create_stream(TCPRECOVERY::LOG, [$columns=Info]);
     }
 
-## TCP limited transmit event
-##
-## This is generated when TCPRS detects the presence of a limited transmit 
-##   event in a connection
-##
-## c:         connection
-## timestamp: network time when the event occurred
-## seq:       TCP sequence number associated with the event
-## is_orig:   Is this from the originating endpoint?
-## rtt:       round-trip time of the connection
-## state:     congestion state of the connection
-## o_seq:     non-normalized TCP sequence number
-## beg_seq:   reserved
-## end_seq:   reserved
 event conn_limited_transmit(
     c:         connection,
     timestamp: time,
@@ -71,21 +53,6 @@ event conn_limited_transmit(
         Log::write(TCPRECOVERY::LOG, rec);
     }
 
-    
-## TCP fast recovery event
-## 
-## This is generated when TCPRS detects the presence of a fast recovery
-##   event in a connection
-##   
-## c:         connection
-## timestamp: network time when the event occurred
-## seq:       TCP sequence number associated with the event
-## is_orig:   Is this from the originating endpoint?
-## rtt:       round-trip time of the connection
-## state:     congestion state of the connection
-## o_seq:     non-normalized TCP sequence number
-## beg_seq:   reserved
-## end_seq:   reserved
 event conn_fast_recovery(
     c:         connection,
     timestamp: time,
