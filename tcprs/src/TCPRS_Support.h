@@ -9,6 +9,7 @@
 
 #include "util.h"
 #include "List.h"
+#include "dlist.h"
 
 namespace analyzer { namespace tcp {
 
@@ -55,11 +56,12 @@ class TCP_Flags;
 
 int Sequence_number_comparison(const uint32 s1, const uint32 s2);
 int Reverse_sequence_range_comparison(const void *v1, const void *v2);
-
+int reverse_seq_range_cmp(struct dlist_entry *list_entry, struct dlist_entry *to_compare);
 
 struct SequenceRange {
 	uint32 min;		//equal to sequence number in TCP header, normalized
 	uint32 to_ack;  //equal to seq + len in TCP header, normalized
+	struct dlist_entry entry;
 };
 
 //This enumeration defines the congestion state of the endpoint

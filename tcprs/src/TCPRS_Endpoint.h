@@ -18,6 +18,7 @@
 #include "analyzer/protocol/tcp/TCP.h"
 #include "TCPRS.h"
 #include "TCPRS_Support.h"
+#include "dlist.h"
 
 namespace analyzer { namespace tcp {
 
@@ -209,7 +210,8 @@ protected:
 	Dictionary expectedAcks;
 
 	// basically the key set for expected_acks, just sorted, and comes with ranges. (so really not the key set at all.)
-	PList(SequenceRange) outstandingData;
+	struct dlist_entry outstandingData;
+	int outstanding_entries;
 
 	PList(double) timeouts;
 

@@ -14,6 +14,7 @@
 #include "Val.h"
 #include "Discard.h"
 #include <cstdarg>
+#include "dlist.h"
 
 #include "TCPRS_Endpoint.h"
 #include "TCPRS_Debug.h"
@@ -106,13 +107,19 @@ TCPRS_Endpoint::TCPRS_Endpoint(tcp::TCP_Endpoint *e, tcp::TCPRS_Analyzer *a) {
 
 	deadConnectionDiedTS = UNDEFINED;
 	deadConnectionDuration = UNDEFINED;
+
+	dlist_init(&outstandingData);
 }
 
 //Valgrind Safe
 // destruct
 TCPRS_Endpoint::~TCPRS_Endpoint() {
-	loop_over_list(outstandingData, l) {
-		delete outstandingData[l];
+	SequenceRange *current, *next;
+	dlist_for_each_entry_safe(current, next, &outstandingData, entry)
+	{
+		dlist_remove(&current->entry);
+		outstanding_entries--;
+		delete current;
 	}
 	loop_over_list(timeouts, a) {
 		delete timeouts[a];
@@ -275,8 +282,9 @@ void TCPRS_Endpoint::ProcessSegment(SegmentInfo *segment) {
 //Valgrind Safe
 SequenceRange* TCPRS_Endpoint::getAckRange(bro_uint_t sequence) {
 	SequenceRange* seq_range;
-	loop_over_list(outstandingData, l) {
-		seq_range = outstandingData[l];
+
+	dlist_for_each_entry(seq_range, &outstandingData, entry)
+	{
 		if (seq_range->min == sequence)
 			return seq_range;
 	}
@@ -300,15 +308,18 @@ SequenceRange* TCPRS_Endpoint::getAckRange(bro_uint_t sequence) {
 
 /* This contains an extraneous condition, case 4. Only three cases are necessary to detect this */
 bool TCPRS_Endpoint::spansPreviousTX(SequenceRange* seq) {
-	loop_over_list(outstandingData, l) {
-		if ((outstandingData[l]->min >= seq->min
-				&& outstandingData[l]->to_ack <= seq->to_ack) ||    //Case 1
-				(outstandingData[l]->to_ack > seq->min
-						&& outstandingData[l]->to_ack <= seq->to_ack) || //Case 2
-				(outstandingData[l]->min >= seq->min
-						&& outstandingData[l]->min < seq->to_ack) ||   //Case 3
-				(outstandingData[l]->min <= seq->min
-						&& outstandingData[l]->to_ack >= seq->to_ack))  //Case 4
+	SequenceRange *current;
+
+	dlist_for_each_entry(current, &outstandingData, entry)
+	{
+		if ((current->min >= seq->min
+				&& current->to_ack <= seq->to_ack) ||    //Case 1
+				(current->to_ack > seq->min
+						&& current->to_ack <= seq->to_ack) || //Case 2
+				(current->min >= seq->min
+						&& current->min < seq->to_ack) ||   //Case 3
+				(current->min <= seq->min
+						&& current->to_ack >= seq->to_ack))  //Case 4
 				{
 			return true;
 		}
@@ -343,15 +354,22 @@ Segment* TCPRS_Endpoint::removeSequenceNumber(uint32 seq) {
 }
 //Valgrind Safe
 void TCPRS_Endpoint::rebuildRange(SequenceRange* range) {
-	SequenceRange* seq = NULL;
+	SequenceRange *seq = NULL, *next;
 	Segment* packet = NULL;
-	PList(SequenceRange) holding;
+	struct dlist_entry holding;
+	int held_entries = 0;
 
-	for (int i = outstandingData.length() - 1; i >= 0; i--) {
-		seq = outstandingData[i];
+	dlist_init(&holding);
+
+	// TODO: why rebuild the entire list? Should be able to remove
+	// affected entries and insert the new range
+
+	dlist_for_each_entry_reverse_safe(seq, next, &outstandingData, entry) {
 		//If the sequence to ack is less than or equal to the range to ack...
 		if (seq && Sequence_number_comparison(seq->to_ack, range->to_ack) < 1) {
-			seq = outstandingData.remove(seq);
+			outstanding_entries--;
+			dlist_remove(&seq->entry);
+
 			//If the range consists of part of this range, then we need to
 			//  reconstruct this.
 			if (seq->min >= range->min) {
@@ -364,19 +382,13 @@ void TCPRS_Endpoint::rebuildRange(SequenceRange* range) {
 
 				delete seq;
 				seq = NULL;
-
 			}
 
 			//If a sequence exists, then range does not cover the entire seq_range
 			//  Return this to the list
 			if (seq) {
-				//if (!outstandingData.is_member(seq, Reverse_sequence_range_comparison)) { // want a set, not a list
-				if (!outstandingData.is_member(seq)) { // want a set, not a list
-					holding.insert(seq);
-				} else {
-					delete seq;
-					seq = NULL;
-				}
+				dlist_insert_head(&holding, &seq->entry);
+				held_entries++;
 			}
 
 		} else {
@@ -385,10 +397,9 @@ void TCPRS_Endpoint::rebuildRange(SequenceRange* range) {
 		}
 	}
 
-	while (holding.length() > 0) {
-		//Reinsert the elements that were taken out while iterating the list.
-		outstandingData.sortedinsert(holding.get(),
-				Reverse_sequence_range_comparison);
+	if (!dlist_empty(&holding)) {
+		dlist_splice_tail(&holding, &outstandingData);
+		outstanding_entries += held_entries;
 	}
 
 	//Range covers the lower portion of this sequence, we need to resize and reinsert
@@ -611,11 +622,12 @@ void TCPRS_Endpoint::insertSequenceNumber(SequenceRange *sequence,
 		segment->sentDuringLossRecovery = true;
 
 	//Setlike list
-	if (sequenceWrapLtEq(highestSequence, sequence->min)
-			|| !isMemberOutstanding(sequence))
-		outstandingData.sortedinsert(sequence,
-				Reverse_sequence_range_comparison);
-	else
+	if (sequenceWrapLtEq(highestSequence, sequence->min) ||
+			!isMemberOutstanding(sequence)) {
+		dlist_sorted_insert(&outstandingData, &sequence->entry, reverse_seq_range_cmp);
+
+		outstanding_entries++;
+	} else
 		delete sequence;
 
 	delete key;
@@ -634,10 +646,12 @@ void TCPRS_Endpoint::insertSequenceNumber(SequenceRange *sequence,
 //  must not be in the list, allowing us to short circuit the traversal of the
 //  list and hopefully save a few operations.
 bool TCPRS_Endpoint::isMemberOutstanding(SequenceRange* seq) {
-	loop_over_list(outstandingData, i) {
-		if (sequenceWrapLtEq(outstandingData[i]->to_ack, seq->min))
+	SequenceRange *current;
+	dlist_for_each_entry(current, &outstandingData, entry)
+	{
+		if (sequenceWrapLtEq(current->to_ack, seq->min))
 			return false;
-		if (memcmp(outstandingData[i], seq, sizeof(SequenceRange)) == 0)
+		if (memcmp(current, seq, sizeof(SequenceRange)) == 0)
 			return true;
 	}
 	return false;
@@ -1123,8 +1137,8 @@ SCORE* TCPRS_Endpoint::scoreRetransmission(SequenceRange* seq,
 			}
 
 			//Early Retransmit Segment based recovery.
-			if (outstandingData.length() < 4) {
-				bro_uint_t ER_thresh = outstandingData.length() - 1;
+			if (outstanding_entries < 4) {
+				bro_uint_t ER_thresh = outstanding_entries - 1;
 				if (ER_thresh <= 0)
 					ER_thresh = 1;
 
@@ -1478,28 +1492,29 @@ bool TCPRS_Endpoint::isRTO(SequenceRange* seq, Segment* packet,
 //  be retained for receiver side analysis because of the proximity to acknowledgements
 Segment* TCPRS_Endpoint::findLikelyOriginalsSegment(SequenceRange* seq) {
 	Segment* to_return = NULL;
-
+	SequenceRange *current;
 	uint32 overlap = 0;
 	uint32 to_find = 0;
 
 	uint32 seq_floor;
 	uint32 seq_ceil;
-	loop_over_list(outstandingData, l) {
+
+	dlist_for_each_entry(current, &outstandingData, entry) {
 		//If there is no possible overlap, continue
-		if (seq->min >= outstandingData[l]->to_ack
-				|| seq->to_ack <= outstandingData[l]->min)
+		if (seq->min >= current->to_ack
+				|| seq->to_ack <= current->min)
 			continue;
 
 		seq_floor = (
-				(seq->min > outstandingData[l]->min) ?
-						seq->min : outstandingData[l]->min);
+				(seq->min > current->min) ?
+						seq->min : current->min);
 		seq_ceil = (
-				(seq->to_ack < outstandingData[l]->to_ack) ?
-						seq->to_ack : outstandingData[l]->to_ack);
+				(seq->to_ack < current->to_ack) ?
+						seq->to_ack :current->to_ack);
 
 		if (seq_ceil - seq_floor > overlap) {
 			overlap = seq_ceil - seq_floor;
-			to_find = outstandingData[l]->to_ack;
+			to_find = current->to_ack;
 		}
 	}
 
@@ -1914,8 +1929,15 @@ Segment* TCPRS_Endpoint::acknowledgeSequences(uint32 sequence,
 	Segment *segment = NULL;
 	Segment *ret = NULL;
 	bool bad_sample = false;
-	SequenceRange *range_key = outstandingData.get();
+	struct dlist_entry *ent = dlist_pop(&outstandingData);
+	SequenceRange *range_key = NULL;
 	//  This is the cumulative acknowledgement
+
+	if (ent) {
+		range_key = container_of(ent, SequenceRange, entry);
+		outstanding_entries--;
+	}
+
 	while (range_key
 			&& Sequence_number_comparison(range_key->to_ack, sequence) < 1) {
 		segment = removeSequenceNumber(range_key->to_ack);
@@ -1953,15 +1975,23 @@ Segment* TCPRS_Endpoint::acknowledgeSequences(uint32 sequence,
 		}
 
 		delete range_key;
-		range_key = outstandingData.get();
+
+		ent = dlist_pop(&outstandingData);
+
+		if (ent) {
+			range_key = container_of(ent, SequenceRange, entry);
+			outstanding_entries--;
+		} else
+			range_key = NULL;
 	}
 
 	//If a segment is outstanding but it is not part of this acknowledgement,
 	// then it needs to be placed into the list again.
 	if (range_key
 			&& Sequence_number_comparison(range_key->to_ack, sequence) == 1) {
-		outstandingData.sortedinsert(range_key,
-				Reverse_sequence_range_comparison);
+		dlist_sorted_insert(&outstandingData, &range_key->entry, reverse_seq_range_cmp);
+		outstanding_entries++;
+
 		range_key = NULL;
 	} else if (range_key) {
 		delete range_key;
@@ -2661,6 +2691,7 @@ void TCPRS_Endpoint::processOptions(const tcphdr* tcp, TCP_Flags& flags,
 	uint32 max_seq = 0;
 	peer->clearSACKBytes();
 	peer->clearSACKSegments();
+	SequenceRange *current;
 
 	while (options < opt_end) {
 		unsigned int opt = options[0];
@@ -2736,9 +2767,12 @@ void TCPRS_Endpoint::processOptions(const tcphdr* tcp, TCP_Flags& flags,
 					 }*/
 				} else {
 					peer->incrementSACKBytes(high_seq - low_seq);
-					loop_over_list(peer->outstandingData, k) {
-						if (peer->outstandingData[k]->min >= low_seq
-								&& peer->outstandingData[k]->to_ack <= high_seq)
+
+					// TODO: This seems buggy
+
+					dlist_for_each_entry(current, &peer->outstandingData, entry) {
+						if (current->min >= low_seq
+								&& current->to_ack <= high_seq)
 							peer->incrementSACKSegments();
 					}
 
@@ -2913,7 +2947,7 @@ int TCPRS_Endpoint::lastID()
 
 bool TCPRS_Endpoint::hasOutstandingData()
 {
-	return outstandingData.length() > 0;
+	return !dlist_empty(&outstandingData);
 }
 
 // TTL that this endpoint sees.
@@ -3128,10 +3162,26 @@ int analyzer::tcp::Sequence_number_comparison(const uint32 s1, const uint32 s2) 
 	return to_return;
 }
 
+int analyzer::tcp::reverse_seq_range_cmp(
+		struct dlist_entry *list_entry,
+		struct dlist_entry *to_compare)
+{
+	SequenceRange *l = container_of(list_entry, SequenceRange, entry);
+	SequenceRange *c = container_of(to_compare, SequenceRange, entry);
+
+	return Reverse_sequence_range_comparison(l, c);
+}
+
 int analyzer::tcp::Reverse_sequence_range_comparison(const void *v1, const void *v2) {
+	static int comparisons = 0;
 
 	const SequenceRange *r1 = (const SequenceRange*) v1;
 	const SequenceRange *r2 = (const SequenceRange*) v2;
+
+	comparisons++;
+
+	if (comparisons % 10000 == 0)
+		fprintf(stderr, "%i comparisons\n", comparisons);
 
 	// for now, just compare based on the ack sequence number.  should be fine..
 	int to_return = 0;
