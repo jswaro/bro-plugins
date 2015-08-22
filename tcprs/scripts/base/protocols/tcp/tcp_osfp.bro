@@ -30,12 +30,12 @@ event bro_init() &priority=5
 event OS_version_found(c: connection, host: addr, OS: OS_version) &priority=-5
 	{
 		local rec: TCPOSFP::Info = [	
-			$uid = c$uid, 	
-			$id = c$id,
-			$host = host,
-			$genre = OS$genre,
+			$uid    = c$uid, 	
+			$id     = c$id,
+			$host   = host,
+			$genre  = OS$genre,
 			$detail = OS$detail,
-			$dist = OS$dist,
-			$OS = OS ];
+			$dist   = OS$dist,
+			$OS     = OS ];
 		Log::write(TCPOSFP::LOG, rec);
 	}

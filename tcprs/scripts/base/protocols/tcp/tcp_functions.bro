@@ -57,8 +57,8 @@ function rexmit_primary_label(c: int): string
         if( c == 4 )  return "FASTRTX";                 #"EARLY_REXMIT"
         if( c == 5 )  return "REXMIT";                  #"REXMIT"
         if( c == 6 )  return "UNKNOWN";                 #"TESTING";
-        if( c == 7 )  return "UNKNOWN";     		#"NO_RTT";
-        if( c == 8 )  return "UNKNOWN";     		#"NO_TS";
+        if( c == 7 )  return "UNKNOWN";     		    #"NO_RTT";
+        if( c == 8 )  return "UNKNOWN";     		    #"NO_TS";
         if( c == 9 )  return "FASTRTX";                 #"SEGMENT_EARLY_REXMIT"
         if( c == 10 ) return "FASTRTX";                	#"BYTE_EARLY_REXMIT"
         if( c == 11 ) return "FASTRTX";                	#"SACK_SEGMENT_EARLY_REXMIT"

@@ -14,8 +14,7 @@ export {
 		id:			conn_id	&log;
 		label:		string	&log;
 		duration:	double	&log;
-		state:          int     &log;
-                #state:		string  &log;
+		state:      int     &log;
 		orig:		bool	&log;
 	};
 
@@ -27,11 +26,12 @@ event bro_init() &priority=5
 		Log::create_stream(TCPDEADCONNECTION::LOG, [$columns=Info]);
 	}
 
-event conn_dead_event(	c: connection, 
-						timestamp:time, 
-						duration:double,
-						state:int, 
-						is_orig:bool) &priority=-5
+event conn_dead_event(	
+	c:         connection, 
+	timestamp: time, 
+	duration:  double,
+	state:     int, 
+	is_orig:   bool) &priority=-5
 	{
 		local rec: TCPDEADCONNECTION::Info = [	
 			$ts   		= timestamp, 
@@ -39,8 +39,7 @@ event conn_dead_event(	c: connection,
 			$id   		= c$id,
 			$label		= "TCP::ConnectionFailure",
 			$duration 	= duration,
-                        $state          = state,
-			#$state 		= state_string(	state ),
+            $state      = state,
 			$orig 		= is_orig ];
         Log::write(TCPDEADCONNECTION::LOG, rec);
 	}
