@@ -7,7 +7,7 @@ module TCPRECOVERY;
 
 export {
 	redef enum Log::ID += { LOG };
-	
+
 	type Info: record {
 		ts:		time 	&log;
 		uid:	string	&log;
@@ -25,12 +25,12 @@ export {
 }
 
 event bro_init() &priority=5
-	{	
+	{
 		Log::create_stream(TCPRECOVERY::LOG, [$columns=Info]);
 	}
 
 event conn_limited_transmit(
-	c:         connection, 
+	c:         connection,
 	timestamp: time,
 	seq:       count,
 	is_orig:   bool,

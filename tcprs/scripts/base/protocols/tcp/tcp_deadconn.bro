@@ -7,7 +7,7 @@ module TCPDEADCONNECTION;
 
 export {
 	redef enum Log::ID += { LOG };
-	
+
 	type Info: record {
 		ts:			time 	&log;
 		uid:		string	&log;
@@ -22,20 +22,20 @@ export {
 }
 
 event bro_init() &priority=5
-	{	
+	{
 		Log::create_stream(TCPDEADCONNECTION::LOG, [$columns=Info]);
 	}
 
-event conn_dead_event(	
-	c:         connection, 
-	timestamp: time, 
+event conn_dead_event(
+	c:         connection,
+	timestamp: time,
 	duration:  double,
-	state:     int, 
+	state:     int,
 	is_orig:   bool) &priority=-5
 	{
-		local rec: TCPDEADCONNECTION::Info = [	
-			$ts   		= timestamp, 
-			$uid  		= c$uid, 	
+		local rec: TCPDEADCONNECTION::Info = [
+			$ts   		= timestamp,
+			$uid  		= c$uid,
 			$id   		= c$id,
 			$label		= "TCP::ConnectionFailure",
 			$duration 	= duration,

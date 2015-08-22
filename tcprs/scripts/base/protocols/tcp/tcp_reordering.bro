@@ -6,7 +6,7 @@ module TCPREORDERING;
 
 export {
 	redef enum Log::ID += { LOG };
-	
+
 	type Info: record {
 		ts:						time 	&log;
 		uid:					string	&log;
@@ -18,7 +18,7 @@ export {
 		rtt:					double	&log &optional;
 		segments_outoforder:	int		&log;
 		orig:					bool	&log;
-		ambiguous:				bool	&log &optional;		
+		ambiguous:				bool	&log &optional;
 		nnseq:					count	&log;
 	};
 
@@ -26,13 +26,13 @@ export {
 }
 
 event bro_init() &priority=5
-	{	
+	{
 		Log::create_stream(TCPREORDERING::LOG, [$columns=Info]);
 	}
 
 #I want to call this a tcp_reordering_event later
-event conn_ooo_event(	
-	c:         connection, 
+event conn_ooo_event(
+	c:         connection,
 	timestamp: time,
 	is_orig:   bool,
 	seq:       count,
@@ -70,8 +70,8 @@ event conn_ambi_order(
 	beg_seq:   count,
 	end_seq:   count) &priority=-5
     {
-        local rec: TCPREORDERING::Info = [	
-        	$ts   				 = timestamp, 
+        local rec: TCPREORDERING::Info = [
+        	$ts   				 = timestamp,
             $uid  				 = c$uid,
             $id   				 = c$id,
             $label				 = "TCP::Reordering",

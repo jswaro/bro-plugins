@@ -6,7 +6,7 @@ module TCPRTT;
 
 export {
 	redef enum Log::ID += { LOG };
-	
+
 	type Info: record {
 		ts:			time 	&log;
 		uid:		string	&log;
@@ -24,35 +24,35 @@ export {
 
 
 event bro_init() &priority=5
-	{	
+	{
 		Log::create_stream(TCPRTT::LOG, [$columns=Info]);
 	}
-	
+
 event conn_initial_rto(
-	c: connection, 
-	timestamp: time, 
+	c: connection,
+	timestamp: time,
 	rto:double,
 	is_orig:bool) &priority=-5
 	{
-		local rec: TCPRTT::Info = [	
-			$ts      = timestamp, 
-			$uid     = c$uid, 	
+		local rec: TCPRTT::Info = [
+			$ts      = timestamp,
+			$uid     = c$uid,
 			$id      = c$id,
 			$label   = "TCP::InitialRTO",
 			$rto     = rto,
 			$is_orig = is_orig ];
 		Log::write(TCPRTT::LOG, rec);
 	}
-	
-event conn_initial_rtt(	
-	c: connection, 
-	timestamp: time, 
+
+event conn_initial_rtt(
+	c: connection,
+	timestamp: time,
 	rtt:double,
 	is_orig:bool) &priority=-5
-	{			
-		local rec: TCPRTT::Info = [	
-			$ts      = timestamp, 
-			$uid     = c$uid, 	
+	{
+		local rec: TCPRTT::Info = [
+			$ts      = timestamp,
+			$uid     = c$uid,
 			$id      = c$id,
 			$label   = "TCP::InitialRTT",
 			$rtt     = rtt,

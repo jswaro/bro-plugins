@@ -7,7 +7,7 @@ module TCPRETRANSMISSIONS;
 
 export {
 	redef enum Log::ID += { LOG };
-	
+
 	type Info: record {
 		ts:			time 	&log;
 		uid:		string	&log;
@@ -17,7 +17,7 @@ export {
 		seq:		count	&log;
 		rtt:		double	&log;
 		state:      int     &log;
-		orig:		bool	&log;		
+		orig:		bool	&log;
 		reason:     int     &log;
 		rtype:      int     &log;
 		confidence:	double	&log &optional;
@@ -31,28 +31,28 @@ export {
 
 
 event bro_init() &priority=5
-	{	
+	{
 		Log::create_stream(TCPRETRANSMISSIONS::LOG, [$columns=Info]);
 	}
-	
-event conn_rexmit(	
-	c:          connection, 
-	timestamp:  time, 
+
+event conn_rexmit(
+	c:          connection,
+	timestamp:  time,
 	seq:        count,
-	is_orig:    bool, 
-	rtt:        double, 
-	state:      int, 
+	is_orig:    bool,
+	rtt:        double,
+	state:      int,
 	o_seq:      count,
-	beg_seq:    count, 
-	end_seq:    count, 
-	reason:     int, 
-	rtype:      int, 
+	beg_seq:    count,
+	end_seq:    count,
+	reason:     int,
+	rtype:      int,
 	confidence: double,
 	flags:      int) &priority=-5
-	{			
-		local rec: TCPRETRANSMISSIONS::Info = [	
-			$ts          = timestamp, 
-			$uid         = c$uid, 	
+	{
+		local rec: TCPRETRANSMISSIONS::Info = [
+			$ts          = timestamp,
+			$uid         = c$uid,
 			$id          = c$id,
 			$label       = "TCP::Retransmissions",
 			$seq         = seq,

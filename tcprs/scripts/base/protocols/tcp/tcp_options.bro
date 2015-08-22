@@ -4,7 +4,7 @@ module TCPOPTIONS;
 
 export {
 	redef enum Log::ID += { LOG };
-	
+
 	type Info: record {
 		ts:					time 	&log;
 		uid:				string	&log;
@@ -21,27 +21,27 @@ export {
 }
 
 event bro_init() &priority=5
-	{	
+	{
 		Log::create_stream(TCPOPTIONS::LOG, [$columns=Info]);
 	}
 
-event conn_config(	
-		c: connection, 
-		timestamp: time, 
-		ts:bool, 
-		bad_conn:bool, 
-		sack:bool, 
-		o_sack_offer:bool, 
+event conn_config(
+		c: connection,
+		timestamp: time,
+		ts:bool,
+		bad_conn:bool,
+		sack:bool,
+		o_sack_offer:bool,
 		r_sack_offer:bool) &priority=-5
 	{
-		local rec: TCPOPTIONS::Info = [	
-			$ts   				= timestamp, 
-			$uid  				= c$uid, 	
+		local rec: TCPOPTIONS::Info = [
+			$ts   				= timestamp,
+			$uid  				= c$uid,
 			$id   				= c$id,
 			$label				= "TCP::Options",
 			$timestamps 		= ts,
 			$bad				= bad_conn,
-			$sack_used			= sack, 
+			$sack_used			= sack,
 			$orig_sack_offer 	= o_sack_offer,
 			$resp_sack_offer 	= r_sack_offer ];
         Log::write(TCPOPTIONS::LOG, rec);
