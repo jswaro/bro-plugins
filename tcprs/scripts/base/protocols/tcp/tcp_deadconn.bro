@@ -8,6 +8,7 @@ module TCPDEADCONNECTION;
 export {
     redef enum Log::ID += { LOG };
 
+    ## Dead connection record
     type Info: record {
         ts:         time    &log;
         uid:        string  &log;
@@ -18,14 +19,25 @@ export {
         orig:       bool    &log;
     };
 
+
+    ## Definition of dead connection log event
     global log_tcp_deadconnection: event(rec: Info);
 }
 
+
+## Dead connection init
 event bro_init() &priority=5
     {
         Log::create_stream(TCPDEADCONNECTION::LOG, [$columns=Info]);
     }
 
+## Dead connection event
+##
+## c:         connection object
+## timestamp: network time of the event
+## duration:  how long was the connection dead for?
+## state:     what state was the connection in when it died?
+## is_orig:   Is this from the originating TCP endpoint
 event conn_dead_event(
     c:         connection,
     timestamp: time,
